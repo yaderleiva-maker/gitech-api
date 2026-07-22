@@ -1,0 +1,25 @@
+# Entorno virtual
+venv/
+env/
+ENV/
+
+# Credenciales
+credenciales/
+*.json
+*.key
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Variables locales
+.env
+.env.local

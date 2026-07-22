@@ -1,0 +1,37 @@
+steps:
+  # Construir la imagen Docker
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/proyecto-css-panama/gitech-api/gitech-api', '.']
+  
+  # Subir la imagen a Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/proyecto-css-panama/gitech-api/gitech-api']
+  
+  # Desplegar en Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'gitech-api'
+      - '--image'
+      - 'us-central1-docker.pkg.dev/proyecto-css-panama/gitech-api/gitech-api'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - 'PROJECT_ID=proyecto-css-panama,DATASET_ID=gitech,TABLE_ID=inventario,ENV=production'
+      - '--memory'
+      - '512Mi'
+      - '--cpu'
+      - '1'
+      - '--port'
+      - '8080'
+
+images:
+  - 'us-central1-docker.pkg.dev/proyecto-css-panama/gitech-api/gitech-api'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
