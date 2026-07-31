@@ -1,3 +1,4 @@
+# app/services/productos_service.py
 from app.database.bigquery import BigQueryClient
 from app.config import config
 from app.models.productos import ProductoInput
@@ -11,9 +12,41 @@ class ProductosService:
     def upsert_producto(producto_data: ProductoInput) -> dict:
         """Inserta o actualiza un producto en BigQuery."""
         try:
-            # 1. Verificar si el producto ya existe
+            # 🔍 Validar que el código SKU no esté duplicado
+            query_verificar_codigo = f"""
+                SELECT id_producto 
+                FROM `{config.PROJECT_ID}.{config.DATASET_ID}.productos`
+                WHERE codigo = @codigo AND id_externo != @id_externo
+            """
+            df_codigo_existente = BigQueryClient.execute_query_safe(
+                query_verificar_codigo,
+                codigo=producto_data.codigo,
+                id_externo=producto_data.id_externo
+            )
+            
+            if not df_codigo_existente.empty:
+                raise Exception(f"El SKU '{producto_data.codigo}' ya está asignado a otro producto")
+            
+            # 🔍 Validar que el código de barras no esté duplicado (si se envía)
+            if producto_data.codigo_barras:
+                query_verificar_barras = f"""
+                    SELECT id_producto 
+                    FROM `{config.PROJECT_ID}.{config.DATASET_ID}.productos`
+                    WHERE codigo_barras = @codigo_barras AND id_externo != @id_externo
+                """
+                df_barras_existente = BigQueryClient.execute_query_safe(
+                    query_verificar_barras,
+                    codigo_barras=producto_data.codigo_barras,
+                    id_externo=producto_data.id_externo
+                )
+                
+                if not df_barras_existente.empty:
+                    raise Exception(f"El código de barras '{producto_data.codigo_barras}' ya está asignado a otro producto")
+            
+            # 🔍 Verificar si el producto ya existe por id_externo
             query_verificar = f"""
-                SELECT id_externo FROM `{config.PROJECT_ID}.{config.DATASET_ID}.productos`
+                SELECT id_producto 
+                FROM `{config.PROJECT_ID}.{config.DATASET_ID}.productos`
                 WHERE id_externo = @id_externo
             """
             df_existente = BigQueryClient.execute_query_safe(
@@ -21,29 +54,25 @@ class ProductosService:
                 id_externo=producto_data.id_externo
             )
             
-            # 2. Calcular existencia
-            existencia = producto_data.total_compras - producto_data.total_ventas
-            
             if df_existente.empty:
-                # 3a. INSERTAR
-                # Obtener el último id_producto para asignar el siguiente
+                # ➕ INSERTAR
                 query_max_id = f"""
                     SELECT COALESCE(MAX(id_producto), 0) + 1 AS next_id
                     FROM `{config.PROJECT_ID}.{config.DATASET_ID}.productos`
                 """
                 df_max_id = BigQueryClient.execute_query(query_max_id)
-                next_id = df_max_id['next_id'].values[0]
+                next_id = int(df_max_id.iloc[0]["next_id"])
                 
                 query_insert = f"""
                     INSERT INTO `{config.PROJECT_ID}.{config.DATASET_ID}.productos` (
-                        id_producto, id_externo, nombre_prod, descripcion, precio_base, 
-                        activo, min_stock, categoria, marca, modelo, foto,
-                        total_compras, total_ventas, existencia,
+                        id_producto, id_externo, codigo, codigo_barras, 
+                        nombre, descripcion, categoria, marca, modelo,
+                        precio_base, activo, stock_minimo, foto,
                         fecha_creacion, fecha_actualizacion
                     ) VALUES (
-                        @id_producto, @id_externo, @nombre, @descripcion, @precio_base,
-                        @activo, @min_stock, @categoria, @marca, @modelo, @foto,
-                        @total_compras, @total_ventas, @existencia,
+                        @id_producto, @id_externo, @codigo, @codigo_barras,
+                        @nombre, @descripcion, @categoria, @marca, @modelo,
+                        @precio_base, @activo, @stock_minimo, @foto,
                         CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()
                     )
                 """
@@ -51,71 +80,67 @@ class ProductosService:
                     query_insert,
                     id_producto=next_id,
                     id_externo=producto_data.id_externo,
-                    nombre=producto_data.nombre_prod,
+                    codigo=producto_data.codigo,
+                    codigo_barras=producto_data.codigo_barras,
+                    nombre=producto_data.nombre,
                     descripcion=producto_data.descripcion,
-                    precio_base=producto_data.precio_base,
-                    activo=producto_data.activo,
-                    min_stock=producto_data.min_stock,
                     categoria=producto_data.categoria,
                     marca=producto_data.marca,
                     modelo=producto_data.modelo,
-                    foto=producto_data.foto,
-                    total_compras=producto_data.total_compras,
-                    total_ventas=producto_data.total_ventas,
-                    existencia=existencia
+                    precio_base=producto_data.precio_base,
+                    activo=producto_data.activo,
+                    stock_minimo=producto_data.stock_minimo,
+                    foto=producto_data.foto
                 )
                 accion = "INSERTADO"
                 id_producto = next_id
                 
             else:
-                # 3b. ACTUALIZAR
+                # 🔄 ACTUALIZAR
+                id_producto = int(df_existente.iloc[0]["id_producto"])
+                
                 query_update = f"""
                     UPDATE `{config.PROJECT_ID}.{config.DATASET_ID}.productos`
                     SET 
-                        nombre_prod = @nombre,
+                        codigo = @codigo,
+                        codigo_barras = @codigo_barras,
+                        nombre = @nombre,
                         descripcion = @descripcion,
-                        precio_base = @precio_base,
-                        activo = @activo,
-                        min_stock = @min_stock,
                         categoria = @categoria,
                         marca = @marca,
                         modelo = @modelo,
+                        precio_base = @precio_base,
+                        activo = @activo,
+                        stock_minimo = @stock_minimo,
                         foto = @foto,
-                        total_compras = @total_compras,
-                        total_ventas = @total_ventas,
-                        existencia = @existencia,
                         fecha_actualizacion = CURRENT_TIMESTAMP()
-                    WHERE id_externo = @id_externo
+                    WHERE id_producto = @id_producto
                 """
                 BigQueryClient.execute_query_safe(
                     query_update,
-                    id_externo=producto_data.id_externo,
-                    nombre=producto_data.nombre_prod,
+                    id_producto=id_producto,
+                    codigo=producto_data.codigo,
+                    codigo_barras=producto_data.codigo_barras,
+                    nombre=producto_data.nombre,
                     descripcion=producto_data.descripcion,
-                    precio_base=producto_data.precio_base,
-                    activo=producto_data.activo,
-                    min_stock=producto_data.min_stock,
                     categoria=producto_data.categoria,
                     marca=producto_data.marca,
                     modelo=producto_data.modelo,
-                    foto=producto_data.foto,
-                    total_compras=producto_data.total_compras,
-                    total_ventas=producto_data.total_ventas,
-                    existencia=existencia
+                    precio_base=producto_data.precio_base,
+                    activo=producto_data.activo,
+                    stock_minimo=producto_data.stock_minimo,
+                    foto=producto_data.foto
                 )
                 accion = "ACTUALIZADO"
-                
-                # Obtener el id_producto existente
-                id_producto = df_existente.iloc[0]['id_externo']
             
-            logger.info(f"Producto {accion}: ID externo {producto_data.id_externo}")
+            logger.info(f"Producto {accion}: SKU {producto_data.codigo}, ID externo {producto_data.id_externo}")
             
             return {
                 "status": "success",
                 "accion": accion,
-                "id_externo": producto_data.id_externo,
-                "id_producto": id_producto,
-                "existencia": existencia,
+                "id_externo": int(producto_data.id_externo),
+                "id_producto": int(id_producto),
+                "codigo": producto_data.codigo,
                 "mensaje": f"Producto {accion} correctamente"
             }
             

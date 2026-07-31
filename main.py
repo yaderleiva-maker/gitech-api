@@ -1,6 +1,6 @@
-# main.py
+# main.py (versión simplificada para prueba)
 from fastapi import FastAPI
-from app.routers import inventario
+from app.routers import inventario, productos
 from app.config import config
 from datetime import datetime
 
@@ -10,23 +10,20 @@ app = FastAPI(
     description="API de integración con BigQuery"
 )
 
-# Incluir routers
 app.include_router(inventario.router)
-app.include_router(productos.router) 
+app.include_router(productos.router)
 
 @app.get("/")
 async def root():
     return {
-        "message": f"🚀 {config.API_TITLE}",
+        "message": "🚀 GITECH Platform API",
         "version": config.API_VERSION,
-        "environment": config.ENV,  # 👈 AHORA SABEMOS DÓNDE ESTAMOS
+        "environment": config.ENV,
         "status": "online",
         "timestamp": datetime.now().isoformat(),
         "endpoints": [
             "/inventario",
-            "/inventario/{id}",
-            "/inventario?estado=Activo&stock_min=5",
-            "/inventario/stock-bajo?limite=5"
+            "/productos"
         ]
     }
 
@@ -37,4 +34,3 @@ async def health():
         "environment": config.ENV,
         "timestamp": datetime.now().isoformat()
     }
-

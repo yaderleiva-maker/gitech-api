@@ -1,62 +1,64 @@
-from fastapi import APIRouter, HTTPException, status
+# app/routers/productos.py
+from fastapi import APIRouter, HTTPException
 from app.services.productos_service import ProductosService
 from app.models.productos import ProductoInput
+from app.database.bigquery import BigQueryClient
+from app.config import config
 
 router = APIRouter(prefix="/productos", tags=["Productos"])
 
 @router.post("/")
 async def upsert_producto(producto: ProductoInput):
-    """
-    Sincroniza un producto desde el sistema web.
-    
-    - Si id_externo NO existe → INSERTA
-    - Si id_externo YA existe → ACTUALIZA
-    """
+    """Crea o actualiza un producto (solo datos maestros)"""
     try:
         resultado = ProductosService.upsert_producto(producto)
         return resultado
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/")
-async def listar_productos(
-    activo: Optional[bool] = True,
-    categoria: Optional[str] = None,
-    min_stock: Optional[int] = None
-):
-    """Lista productos con filtros opcionales."""
-    from app.database.bigquery import BigQueryClient
-    from app.config import config
-    
+async def listar_productos():
+    """Lista todos los productos (datos maestros)"""
     try:
         query = f"""
-            SELECT * FROM `{config.PROJECT_ID}.{config.DATASET_ID}.productos`
-            WHERE 1=1
+            SELECT 
+                id_producto,
+                id_externo,
+                codigo,
+                nombre,
+                descripcion,
+                marca,
+                categoria,
+                modelo,
+                precio_base,
+                activo,
+                stock_minimo,
+                foto,
+                fecha_creacion,
+                fecha_actualizacion
+            FROM `{config.PROJECT_ID}.{config.DATASET_ID}.productos`
+            ORDER BY nombre
         """
-        params = {}
+        df = BigQueryClient.execute_query(query)
         
-        if activo is not None:
-            query += " AND activo = @activo"
-            params["activo"] = activo
+        # Convertir a JSON serializable
+        data = []
+        for _, row in df.iterrows():
+            record = {}
+            for col in df.columns:
+                value = row[col]
+                if hasattr(value, 'item'):  # numpy types
+                    record[col] = value.item()
+                elif isinstance(value, pd.Timestamp):
+                    record[col] = value.isoformat()
+                else:
+                    record[col] = value
+            data.append(record)
         
-        if categoria:
-            query += " AND categoria = @categoria"
-            params["categoria"] = categoria
-        
-        if min_stock is not None:
-            query += " AND existencia < @min_stock"
-            params["min_stock"] = min_stock
-        
-        query += " ORDER BY nombre_prod"
-        
-        df = BigQueryClient.execute_query_safe(query, **params)
         return {
             "status": "success",
-            "total": len(df),
-            "data": df.to_dict(orient='records')
+            "total": len(data),
+            "data": data
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
