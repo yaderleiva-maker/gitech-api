@@ -5,13 +5,14 @@ from app.config import config
 from datetime import datetime
 
 app = FastAPI(
-    title=config.API_TITLE,
+    title="GITECH Platform API",
     version=config.API_VERSION,
-    description=config.API_DESCRIPTION
+    description="API de integración con BigQuery"
 )
 
 # Incluir routers
 app.include_router(inventario.router)
+app.include_router(productos.router) 
 
 @app.get("/")
 async def root():
