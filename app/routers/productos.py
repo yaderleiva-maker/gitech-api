@@ -5,6 +5,7 @@ from app.database.bigquery import BigQueryClient
 from app.config import config
 from typing import Optional
 import pandas as pd
+from decimal import Decimal  # 🔥 IMPORTAR
 
 router = APIRouter(prefix="/productos", tags=["Productos"])
 
@@ -74,7 +75,7 @@ async def listar_productos(
         
         df = BigQueryClient.execute_query_safe(query, **params)
         
-        # Convertir a JSON serializable
+        # 🔥 Convertir a JSON serializable (incluyendo Decimal)
         data = []
         for _, row in df.iterrows():
             record = {}
@@ -84,6 +85,8 @@ async def listar_productos(
                     record[col] = value.item()
                 elif isinstance(value, pd.Timestamp):
                     record[col] = value.isoformat()
+                elif isinstance(value, Decimal):  # 🔥 NUEVO: convertir Decimal
+                    record[col] = float(value)
                 else:
                     record[col] = value
             data.append(record)
@@ -97,7 +100,7 @@ async def listar_productos(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/{id_producto}")
-async def get_producto(id_producto: str):  # 🔥 CAMBIADO: str en lugar de int
+async def get_producto(id_producto: str):
     """
     Obtiene un producto específico por su ID interno (STRING).
     
@@ -129,7 +132,7 @@ async def get_producto(id_producto: str):  # 🔥 CAMBIADO: str en lugar de int
         if df.empty:
             raise HTTPException(status_code=404, detail="Producto no encontrado")
         
-        # Convertir a JSON serializable
+        # 🔥 Convertir a JSON serializable (incluyendo Decimal)
         row = df.iloc[0]
         record = {}
         for col in df.columns:
@@ -138,6 +141,8 @@ async def get_producto(id_producto: str):  # 🔥 CAMBIADO: str en lugar de int
                 record[col] = value.item()
             elif isinstance(value, pd.Timestamp):
                 record[col] = value.isoformat()
+            elif isinstance(value, Decimal):  # 🔥 NUEVO: convertir Decimal
+                record[col] = float(value)
             else:
                 record[col] = value
         
