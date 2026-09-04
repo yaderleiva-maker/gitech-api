@@ -10,7 +10,12 @@ router = APIRouter(prefix="/productos", tags=["Productos"])
 
 @router.post("/")
 async def upsert_producto(producto: ProductoInput):
-    """Crea o actualiza un producto (solo datos maestros)"""
+    """
+    Crea o actualiza un producto (solo datos maestros).
+    
+    - Si id_externo NO existe → INSERTA
+    - Si id_externo YA existe → ACTUALIZA
+    """
     try:
         resultado = ProductosService.upsert_producto(producto)
         return resultado
@@ -23,7 +28,13 @@ async def listar_productos(
     categoria: Optional[str] = Query(None, description="Filtrar por categoría"),
     search: Optional[str] = Query(None, description="Buscar por nombre, SKU o código de barras")
 ):
-    """Lista productos con filtros opcionales"""
+    """
+    Lista productos con filtros opcionales.
+    
+    - activo: true/false
+    - categoria: nombre de la categoría
+    - search: texto a buscar en nombre, SKU o código de barras
+    """
     try:
         query = f"""
             SELECT 
@@ -86,8 +97,12 @@ async def listar_productos(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/{id_producto}")
-async def get_producto(id_producto: int):
-    """Obtiene un producto específico por su ID interno"""
+async def get_producto(id_producto: str):  # 🔥 CAMBIADO: str en lugar de int
+    """
+    Obtiene un producto específico por su ID interno (STRING).
+    
+    Ejemplo: GET /productos/GIT-PROD-000001
+    """
     try:
         query = f"""
             SELECT 
