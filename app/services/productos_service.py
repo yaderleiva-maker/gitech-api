@@ -20,7 +20,7 @@ class ProductosService:
             df_codigo_existente = BigQueryClient.execute_query_safe(
                 query_verificar_codigo,
                 codigo=producto_data.codigo,
-                id_externo=producto_data.id_externo
+                id_externo=str(producto_data.id_externo)  # 🔥 Convertir a STRING
             )
             
             if not df_codigo_existente.empty:
@@ -36,7 +36,7 @@ class ProductosService:
                 df_barras_existente = BigQueryClient.execute_query_safe(
                     query_verificar_barras,
                     codigo_barras=producto_data.codigo_barras,
-                    id_externo=producto_data.id_externo
+                    id_externo=str(producto_data.id_externo)  # 🔥 Convertir a STRING
                 )
                 
                 if not df_barras_existente.empty:
@@ -50,17 +50,20 @@ class ProductosService:
             """
             df_existente = BigQueryClient.execute_query_safe(
                 query_verificar,
-                id_externo=producto_data.id_externo
+                id_externo=str(producto_data.id_externo)  # 🔥 Convertir a STRING
             )
             
             if df_existente.empty:
                 # ➕ INSERTAR: Obtener siguiente ID
                 query_max_id = f"""
-                    SELECT COALESCE(MAX(id_producto), 0) + 1 AS next_id
+                    SELECT COALESCE(MAX(CAST(id_producto AS INT64)), 0) + 1 AS next_id
                     FROM `{config.PROJECT_ID}.{config.DATASET_ID}.productos`
                 """
                 df_max_id = BigQueryClient.execute_query(query_max_id)
                 next_id = int(df_max_id.iloc[0]["next_id"])
+                
+                # 🔥 Generar ID en formato STRING
+                id_producto_str = f"GIT-PROD-{str(next_id).zfill(6)}"
                 
                 query_insert = f"""
                     INSERT INTO `{config.PROJECT_ID}.{config.DATASET_ID}.productos` (
@@ -77,8 +80,8 @@ class ProductosService:
                 """
                 BigQueryClient.execute_query_safe(
                     query_insert,
-                    id_producto=next_id,
-                    id_externo=producto_data.id_externo,
+                    id_producto=id_producto_str,
+                    id_externo=str(producto_data.id_externo),  # 🔥 Convertir a STRING
                     codigo=producto_data.codigo,
                     codigo_barras=producto_data.codigo_barras,
                     nombre=producto_data.nombre,
@@ -92,11 +95,11 @@ class ProductosService:
                     foto=producto_data.foto
                 )
                 accion = "INSERTADO"
-                id_producto = next_id
+                id_producto = id_producto_str
                 
             else:
                 # 🔄 ACTUALIZAR
-                id_producto = int(df_existente.iloc[0]["id_producto"])
+                id_producto = df_existente.iloc[0]["id_producto"]
                 
                 query_update = f"""
                     UPDATE `{config.PROJECT_ID}.{config.DATASET_ID}.productos`
@@ -138,7 +141,7 @@ class ProductosService:
                 "status": "success",
                 "accion": accion,
                 "id_externo": int(producto_data.id_externo),
-                "id_producto": int(id_producto),
+                "id_producto": id_producto,
                 "codigo": producto_data.codigo,
                 "mensaje": f"Producto {accion} correctamente"
             }
