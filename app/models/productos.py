@@ -4,8 +4,8 @@ from typing import Optional
 class ProductoInput(BaseModel):
     """Modelo para recibir productos desde el sistema web"""
     
-    # 🔗 Identificadores
-    id_externo: int = Field(..., description="ID del producto en el sistema web")
+    # 🔗 Identificadores (AMBOS STRING)
+    id_externo: str = Field(..., description="ID del producto en el sistema web (STRING)")
     codigo: str = Field(..., description="SKU interno del producto")
     codigo_barras: Optional[str] = Field(None, description="Código de barras EAN/UPC")
     

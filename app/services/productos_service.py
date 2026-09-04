@@ -140,7 +140,7 @@ class ProductosService:
             return {
                 "status": "success",
                 "accion": accion,
-                "id_externo": int(producto_data.id_externo),
+                "id_externo": producto_data.id_externo,
                 "id_producto": id_producto,
                 "codigo": producto_data.codigo,
                 "mensaje": f"Producto {accion} correctamente"
