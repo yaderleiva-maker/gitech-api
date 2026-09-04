@@ -1,4 +1,3 @@
-# app/services/productos_service.py
 from app.database.bigquery import BigQueryClient
 from app.config import config
 from app.models.productos import ProductoInput
@@ -12,7 +11,7 @@ class ProductosService:
     def upsert_producto(producto_data: ProductoInput) -> dict:
         """Inserta o actualiza un producto en BigQuery."""
         try:
-            # 🔍 Validar que el código SKU no esté duplicado
+            # 🔍 Validar que el SKU no esté duplicado
             query_verificar_codigo = f"""
                 SELECT id_producto 
                 FROM `{config.PROJECT_ID}.{config.DATASET_ID}.productos`
@@ -27,7 +26,7 @@ class ProductosService:
             if not df_codigo_existente.empty:
                 raise Exception(f"El SKU '{producto_data.codigo}' ya está asignado a otro producto")
             
-            # 🔍 Validar que el código de barras no esté duplicado (si se envía)
+            # 🔍 Validar que el código de barras no esté duplicado
             if producto_data.codigo_barras:
                 query_verificar_barras = f"""
                     SELECT id_producto 
@@ -55,7 +54,7 @@ class ProductosService:
             )
             
             if df_existente.empty:
-                # ➕ INSERTAR
+                # ➕ INSERTAR: Obtener siguiente ID
                 query_max_id = f"""
                     SELECT COALESCE(MAX(id_producto), 0) + 1 AS next_id
                     FROM `{config.PROJECT_ID}.{config.DATASET_ID}.productos`
