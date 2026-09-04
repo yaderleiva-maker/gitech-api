@@ -1,14 +1,27 @@
-# main.py (versión simplificada para prueba)
-from fastapi import FastAPI
+# main.py
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from app.routers import inventario, productos
 from app.config import config
 from datetime import datetime
+import traceback  # ← NUEVO
 
 app = FastAPI(
     title="GITECH Platform API",
     version=config.API_VERSION,
     description="API de integración con BigQuery"
 )
+
+# 🔥 MANEJADOR DE EXCEPCIONES PARA DEBUG
+@app.exception_handler(Exception)
+async def debug_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": str(exc),
+            "traceback": traceback.format_exc()
+        }
+    )
 
 app.include_router(inventario.router)
 app.include_router(productos.router)

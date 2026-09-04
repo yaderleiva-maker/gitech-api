@@ -5,7 +5,7 @@ from app.database.bigquery import BigQueryClient
 from app.config import config
 from typing import Optional
 import pandas as pd
-from decimal import Decimal  # 🔥 IMPORTAR
+from decimal import Decimal
 
 router = APIRouter(prefix="/productos", tags=["Productos"])
 
@@ -31,10 +31,6 @@ async def listar_productos(
 ):
     """
     Lista productos con filtros opcionales.
-    
-    - activo: true/false
-    - categoria: nombre de la categoría
-    - search: texto a buscar en nombre, SKU o código de barras
     """
     try:
         query = f"""
@@ -75,17 +71,21 @@ async def listar_productos(
         
         df = BigQueryClient.execute_query_safe(query, **params)
         
-        # 🔥 Convertir a JSON serializable (incluyendo Decimal)
+        # 🔥 Convertir a JSON serializable (con manejo de NaN)
         data = []
         for _, row in df.iterrows():
             record = {}
             for col in df.columns:
                 value = row[col]
-                if hasattr(value, 'item'):  # numpy types
+                
+                # 🔥 PRIMERO: verificar si es NaN/Null
+                if pd.isna(value):
+                    record[col] = None
+                elif hasattr(value, 'item'):  # numpy types
                     record[col] = value.item()
                 elif isinstance(value, pd.Timestamp):
                     record[col] = value.isoformat()
-                elif isinstance(value, Decimal):  # 🔥 NUEVO: convertir Decimal
+                elif isinstance(value, Decimal):
                     record[col] = float(value)
                 else:
                     record[col] = value
@@ -103,8 +103,6 @@ async def listar_productos(
 async def get_producto(id_producto: str):
     """
     Obtiene un producto específico por su ID interno (STRING).
-    
-    Ejemplo: GET /productos/GIT-PROD-000001
     """
     try:
         query = f"""
@@ -132,16 +130,20 @@ async def get_producto(id_producto: str):
         if df.empty:
             raise HTTPException(status_code=404, detail="Producto no encontrado")
         
-        # 🔥 Convertir a JSON serializable (incluyendo Decimal)
+        # 🔥 Convertir a JSON serializable (con manejo de NaN)
         row = df.iloc[0]
         record = {}
         for col in df.columns:
             value = row[col]
-            if hasattr(value, 'item'):
+            
+            # 🔥 PRIMERO: verificar si es NaN/Null
+            if pd.isna(value):
+                record[col] = None
+            elif hasattr(value, 'item'):
                 record[col] = value.item()
             elif isinstance(value, pd.Timestamp):
                 record[col] = value.isoformat()
-            elif isinstance(value, Decimal):  # 🔥 NUEVO: convertir Decimal
+            elif isinstance(value, Decimal):
                 record[col] = float(value)
             else:
                 record[col] = value
